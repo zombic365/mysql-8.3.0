@@ -25,8 +25,6 @@ function get_version() {
 }
 
 main() {
-
-
     pre_chk_pkg="libaio"
     [ $# -eq 1 ] && get_version $1 || help_usage
     ### 작업 과정 순서 
@@ -126,6 +124,9 @@ no-auto-rehash
 quick
 max_allowed_packet = 16M
 
+[mysqld_safe]
+socket                      = ${MYSQL_PATH}/tmp/mysqld.sock
+
 [mysqld]
 user                        = mysql
 pid-file                    = ${MYSQL_PATH}/tmp/mysqld.pid
@@ -186,6 +187,15 @@ EOF
         fi
     fi
 
+    printf "Mysql config link /etc/my.cnf"
+    ln -Tfs ${MYSQL_PATH}/my.cnf /etc/my.cnf
+    if [ $? -eq 0 ]; then
+        printf "=> ${COLOR_G}OK${COLOR_RESET}\n"
+    else
+        printf "=> ${COLOR_R}FAIL${COLOR_RESET}\n"
+        exit 1
+    fi
+    
     if [ ! -f ${MYSQL_PATH}/log/mysql.err ]; then
         touch /DATA/mysql.d/log/mysql.err
     fi
@@ -207,13 +217,17 @@ EOF
     ### 5.Mysql 기동 및 기본 설정
     source ~/.bash_profile
     printf "#5. MySQL init setup or start\n"
-    printf "Mysql setup: initalizel\n"
-    ${MYSQL_PATH}/bin/mysqld --user=mysql --basedir=${MYSQL_PATH} --datadir=${MYSQL_PATH}/data --initialize-insecure
-    if [ $? -eq 0 ]; then
-        printf "=> ${COLOR_G}OK${COLOR_RESET}\n"
+    printf "Mysql setup: initialize\n"
+    if [ ! -d ${MYSQL_PATH}/data/mysql ]; then
+        ${MYSQL_PATH}/bin/mysqld --user=mysql --basedir=${MYSQL_PATH} --datadir=${MYSQL_PATH}/data --initialize-insecure
+        if [ $? -eq 0 ]; then
+            printf "=> ${COLOR_G}OK${COLOR_RESET}\n"
+        else
+            printf "=> ${COLOR_R}FAIL${COLOR_RESET}\n"
+            exit 1
+        fi
     else
-        printf "=> ${COLOR_R}FAIL${COLOR_RESET}\n"
-        exit 1
+        printf "=> ${COLOR_P}SKIP${COLOR_RESET}\n"
     fi
 
     if [ ! -f ${MYSQL_PATH}/data/public_key.pem ]; then
@@ -244,15 +258,10 @@ TimeoutSec=300
 PrivateTmp=true
 User=mysql
 Group=mysql
-# ExecStartPre=/bin/mkdir -p /var/run/mysqld
-# ExecStartPre=/bin/chown mysql:mysql -R /var/run/mysqld
-# ExecStart=/usr/sbin/mysqld --basedir=/usr --datadir=/var/lib/mysql --plugin-dir=/usr/lib/mysql/plugin --log-error=/var/log/mysql/error.log --pid-file=/var/run/mysqld/mysqld.pid --socket=/var/run/mysqld/mysqld.sock --port=3306
 ExecStart=${MYSQL_PATH}/bin/mysqld_safe --defaults-file=${MYSQL_PATH}/my.cnf
 
-# WorkingDirectory=/usr
-
 [Install]
-WantedBy=multi-user.target7y
+WantedBy=multi-user.target
 EOF
        if [ $? -eq 0 ]; then
             printf "=> ${COLOR_G}OK${COLOR_RESET}\n"
